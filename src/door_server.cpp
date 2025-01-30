@@ -108,7 +108,7 @@ void DoorServer::doorServerTimerCallback()
       updateDoorFrameData(5.0, 2, verifical_color_img, verifical_color_img, check_updated_image_);
       // RCLCPP_INFO(this->get_logger(), "now size: %d, updated size : %d", (int)door_frame_data_.size(), (int)door_frame_data_updated_.size());
 
-      caluculateCenterFrameDistance(5, door_frame_data_updated_, door_pos_, verifical_color_img, depth_cv_img_ptr_->image, check_door_state_image_);
+      caluculateCenterFrameDistance(door_frame_data_updated_, door_pos_, verifical_color_img, depth_cv_img_ptr_->image, check_door_state_image_);
 
       infra_cv_img_ptr_->image.copyTo(img_prev_);
       cv::waitKey(1);
@@ -623,7 +623,6 @@ void DoorServer::updateDoorFrameData(
 }  
 
 void DoorServer::caluculateCenterFrameDistance(
-  const double x_threshols,
   const std::vector<std::tuple<cv::Point2f, std::array<double, 10>, double,  int>>& door_frame_data_updated,
   std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>>& door_pos,
   const cv::Mat& result_img,

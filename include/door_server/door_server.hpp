@@ -56,7 +56,6 @@ private:
         const bool img_check);
 
     void caluculateCenterFrameDistance(
-        const double x_threshols,
         const std::vector<std::tuple<cv::Point2f, std::array<double, 10>, double,  int>>& door_frame_data_updated,
         std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>>& door_pos,
         const cv::Mat& result_img,
