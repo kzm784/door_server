@@ -19,34 +19,53 @@ private:
     void infraImgSubCallback(const sensor_msgs::msg::Image::SharedPtr infra_img_msg);
     void depthImgSubCallback(const sensor_msgs::msg::Image::SharedPtr depth_img_msg);
     void doorServerTimerCallback();
+
+    void createDiffImage(
+        const cv::Mat& src_img,
+        const cv::Mat& src_img_prev,
+        const cv::Mat& result_img,
+        const bool img_check);
     
     void labelingHoughTransform(
-        const cv::Mat &src_img,
-        const cv::Mat &result_img,
-        double vertical_angle,
-        double strict_vertical_angle,        
-        int line_width);
-    
-    void kMeansHoughTransform(
-        const cv::Mat &src_img,
-        double vertical_angle,
+        const cv::Mat& src_img,
+        const cv::Mat& result_img,
+        const bool img_check,
+        const double vertical_angle,
         double strict_vertical_angle,
-        cv::Mat &clustering_points);
-    
-    void kMeansClustering(
-        const cv::Mat &clustering_points,
-        int k);
-    
+        int line_width);
+
+    void kmeansHoughTransform(
+        const cv::Mat src_img,
+        const cv::Mat& result_img,
+        const bool img_check,
+        const double vertical_angle,
+        double strict_vertical_angle,
+        cv::Mat& clustering_points);
+
+    void kmeansClustering(
+        const cv::Mat& clustering_points,
+        int k,
+        cv::Mat& result_img,
+        const bool img_check);
+
     void updateDoorFrameData(
-        double ave_speed_threshold,
-        int interpolation_limit,
-        const cv::Mat &src_img);
+        const double ave_speed_threshold,
+        const int interpolation_limit,
+        const cv::Mat& src_img,
+        const cv::Mat& result_img,
+        const bool img_check);
 
     void caluculateCenterFrameDistance(
+        const double x_threshols,
         const std::vector<std::tuple<cv::Point2f, std::array<double, 10>, double,  int>>& door_frame_data_updated,
         std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>>& door_pos,
         const cv::Mat& result_img,
-        cv::Mat& depth_image);
+        cv::Mat& depth_img,
+        const bool img_check);
+
+    void doorAvePosCalc(
+        cv::Mat& src_img,
+        std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>>& door_pos);
 
     void pixelToPoint(
         float x_pix,
@@ -54,18 +73,14 @@ private:
         float depth,
         cv::Point3f& point);
 
-    void doorPixelToPoint(
-        cv::Mat& src_img,
-        std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>>& door_pos);
-
-    void doorAvePosCalc(
-        cv::Mat& src_img,
-        std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>>& door_pos);
-
-
-    
     // Parameters
     int update_rate_{10};
+    bool check_diff_iamge_{false};
+    bool check_labeling_hough_image_{false};
+    bool check_kmeans_hough_image_{false};
+    bool check_kmeans_clustering_image_{false};
+    bool check_updated_image_{false};
+    bool check_door_state_image_{false};
 
     // ROS 2 Interfaces
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr infra_img_sub_;
@@ -76,13 +91,22 @@ private:
     cv_bridge::CvImagePtr infra_cv_img_ptr_;
     cv_bridge::CvImagePtr depth_cv_img_ptr_;
     cv::Mat img_prev_;
+    
+    //現在のドアフレームのデータ群 <0:x座標, 1:ラベル番号> の宣言
     std::vector<std::tuple<cv::Point2f, int>> door_frame_data_;
-    std::vector<std::tuple<cv::Point2f, std::array<double, 10>, double, int>> door_frame_data_updated_;
+    
+    //ドア開閉判定で使用するドアフレームのデータ群 <0:x座標, 1:過去の速度配列, 2:平均速度, 3:補間カウンター> の宣言
+    std::vector<std::tuple<cv::Point2f, std::array<double, 10>, double,  int>> door_frame_data_updated_;
+
+    //中心ドアフレームペアの画像座標と三次元座標を保存する変数の宣言
     std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>> door_pos_;
+    
+    //中心ドアフレームペアの補間に使用する 1 フレーム前のデータ群 <0: x座標, 1: 平均速度>
     std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>> door_pos_prev_;
-    double min_diff_prev_{0.0};
-    int state_{0};
-    bool is_door_opened_{false};
+
+    double min_diff_prev_ ;
+    int state_;
+    bool is_door_opened_;
     std::array<int, 10> door_state_factor_;
 };
 
