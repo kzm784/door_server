@@ -34,6 +34,7 @@ DoorServer::DoorServer(const rclcpp::NodeOptions & options)
         rclcpp::QoS(10).best_effort().durability_volatile(),
         std::bind(&DoorServer::infraImgSubCallback, this, std::placeholders::_1)
     );
+
     depth_img_sub_ = create_subscription<sensor_msgs::msg::Image>(
         "/depth/image_rect_raw",
         rclcpp::QoS(10).best_effort().durability_volatile(),
@@ -670,17 +671,17 @@ void DoorServer::caluculateCenterFrameDistance(
     if(diff > 0.0)
     {
       door_state_factor_[0] = 1;           //開いているとき
-      RCLCPP_INFO(this->get_logger(), "opening");
+      // RCLCPP_INFO(this->get_logger(), "opening");
     } 
     else if (diff < 0.0)
     {
       door_state_factor_[0] = -1;    //閉じているとき
-      RCLCPP_WARN(this->get_logger(), "closing");
+      // RCLCPP_WARN(this->get_logger(), "closing");
     } 
     else
     {
       door_state_factor_[0] = 0;                   //差がゼロ->閉じきったもしくは開ききった時
-      RCLCPP_ERROR(this->get_logger(), "unknown");
+      // RCLCPP_ERROR(this->get_logger(), "unknown");
     } 
 
     //state_が 1 もしくは -1 つまり開閉どちらかの途中には計測する
@@ -705,17 +706,17 @@ void DoorServer::caluculateCenterFrameDistance(
     door_pos_prev_.second.first.y = result_img.rows / 2;
 
     door_state_factor_[0] = 0;
-    RCLCPP_ERROR(this->get_logger(), "unknown");
+    // RCLCPP_ERROR(this->get_logger(), "unknown");
   }
   else if (door_frame_data_updated.size() == 1 && state_ == 1)
   {
     door_state_factor_[0] = 0;
-    RCLCPP_ERROR(this->get_logger(), "unknown");
+    // RCLCPP_ERROR(this->get_logger(), "unknown");
   }
   else if (door_frame_data_.empty())
   {
     door_state_factor_[0] = 0;
-    RCLCPP_ERROR(this->get_logger(), "unknown");
+    // RCLCPP_ERROR(this->get_logger(), "unknown");
   }
 
 
@@ -929,8 +930,7 @@ void DoorServer::pixelToPoint(
   float x_pix,
   float y_pix,
   float depth,
-  cv::Point3f& point
-)
+  cv::Point3f& point)
 {
   //realsese ros width:848 height:480
   //realsense windows width:1280 height:720
