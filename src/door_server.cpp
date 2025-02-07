@@ -4,6 +4,7 @@ DoorServer::DoorServer(const rclcpp::NodeOptions & options)
 : Node("door_server", options)
 {
     // Parameters
+    declare_parameter<std::string>("event_id_path", "");
     declare_parameter<std::int32_t>("update_rate", 10);
     declare_parameter<bool>("check_diff_image", false);
     declare_parameter<bool>("check_labeling_hough_image", false);
@@ -12,6 +13,7 @@ DoorServer::DoorServer(const rclcpp::NodeOptions & options)
     declare_parameter<bool>("check_updated_image", false);
     declare_parameter<bool>("check_door_state_image", false);
 
+    get_parameter("event_id_path", event_id_path_);
     get_parameter("update_rate", update_rate_);
     get_parameter("check_diff_image", check_diff_iamge_);
     get_parameter("check_labeling_image", check_labeling_hough_image_);
@@ -20,6 +22,7 @@ DoorServer::DoorServer(const rclcpp::NodeOptions & options)
     get_parameter("check_updated_image", check_updated_image_);
     get_parameter("check_door_state_image", check_door_state_image_);
 
+    RCLCPP_INFO(get_logger(), "evnet_id_path:%s", event_id_path_.c_str());
     RCLCPP_INFO(get_logger(), "update_rate: %d", update_rate_);
     RCLCPP_INFO(get_logger(), "check_diff_image: %s", check_diff_iamge_ ? "true" : "false");
     RCLCPP_INFO(get_logger(), "check_labeling_hough_image: %s", check_labeling_hough_image_ ? "true" : "false");
@@ -41,11 +44,22 @@ DoorServer::DoorServer(const rclcpp::NodeOptions & options)
         std::bind(&DoorServer::depthImgSubCallback, this, std::placeholders::_1)
     );
 
+    reached_waypoint_id_sub_ = create_subscription<std_msgs::msg::Int32>(
+      "reached_waypoint_id",
+      rclcpp::QoS(10),
+      std::bind(&DoorServer::reachedWaypointSubCallback, this, std::placeholders::_1)
+    );
+
+    event_flag_pub_ = this->create_publisher<std_msgs::msg::Int32>("event_flag", rclcpp::QoS(10));
+
+
     // Timer
     door_server_timer_ = create_wall_timer(
         std::chrono::milliseconds( 1000 / update_rate_),
         std::bind(&DoorServer::doorServerTimerCallback, this)
     );
+
+    door_event_id_ = loadDoorEventId(event_id_path_);
 }
 
 void DoorServer::infraImgSubCallback(const sensor_msgs::msg::Image::SharedPtr infra_img_msg)
@@ -76,8 +90,79 @@ void DoorServer::depthImgSubCallback(const sensor_msgs::msg::Image::SharedPtr de
     }
 }
 
+void DoorServer::reachedWaypointSubCallback(const std_msgs::msg::Int32::SharedPtr msg)
+{
+    int reached_id = msg->data;
+    if (std::find(door_event_id_.begin(), door_event_id_.end(), reached_id) != door_event_id_.end())
+    {
+        activate_door_event_ = true;
+        RCLCPP_INFO(get_logger(), "activate_door_event set to true, reached waypoint id: %d", reached_id);
+    }
+    else
+    {
+        RCLCPP_INFO(get_logger(), "Reached waypoint id %d is not in door_event_id_", reached_id);
+    }
+}
+
+std::vector<int> DoorServer::loadDoorEventId(const std::string &file_name)
+{
+    std::ifstream file(file_name);
+    if (!file.is_open())
+    {
+        RCLCPP_INFO(rclcpp::get_logger("door_server"), "No IDs loaded");
+        return {};
+    }
+
+    std::vector<int> event_id;
+    std::string line;
+    
+    // ヘッダー行を読み飛ばす（1行目をスキップ）
+    if (!std::getline(file, line)) {
+        RCLCPP_WARN(rclcpp::get_logger("door_server"), "Failed to read header from file: %s", file_name.c_str());
+        return event_id;
+    }
+    
+    // 2行目以降を読み込み
+    while (std::getline(file, line))
+    {
+        if (line.empty())
+            continue;
+            
+        std::istringstream ss(line);
+        std::string token;
+        std::vector<std::string> row;
+        
+        // カンマで分割（1列の場合でも、1要素の vector となる）
+        while (std::getline(ss, token, ','))
+        {
+            row.push_back(token);
+        }
+        
+        // 少なくとも1列はあるか確認
+        if (row.empty()) {
+            RCLCPP_WARN(rclcpp::get_logger("door_server"), "Empty row encountered: %s", line.c_str());
+            continue;
+        }
+        
+        try {
+            // 1列目（row[0]）の値を整数に変換して push_back する
+            event_id.push_back(std::stoi(row[0]));
+        } catch (const std::exception &e) {
+            RCLCPP_WARN(rclcpp::get_logger("door_server"), "Conversion error for line: %s", line.c_str());
+            continue;
+        }
+    }
+    
+    return event_id;
+}
+
+
 void DoorServer::doorServerTimerCallback()
 {
+  if (!activate_door_event_) {
+      return;
+  }
+
   if (infra_cv_img_ptr_ && depth_cv_img_ptr_)
   {
     if (!img_prev_.empty())
@@ -134,7 +219,7 @@ void DoorServer::doorServerTimerCallback()
 void DoorServer::createDiffImage(
   const cv::Mat& src_img,
   const cv::Mat& src_img_prev,
-  const cv::Mat& result_img,
+  cv::Mat& result_img,
   const bool img_check)
   {
     cv::absdiff(src_img, src_img_prev, result_img);
@@ -150,7 +235,7 @@ void DoorServer::createDiffImage(
 
 void DoorServer::labelingHoughTransform(
   const cv::Mat& src_img,
-  const cv::Mat& result_img,
+  cv::Mat& result_img,
   const bool img_check,
   const double vertical_angle,
   double strict_vertical_angle,
@@ -211,7 +296,7 @@ void DoorServer::labelingHoughTransform(
 
 void DoorServer::kmeansHoughTransform(
   const cv::Mat src_img,
-  const cv::Mat& result_img,
+  cv::Mat& result_img,
   const bool img_check,
   const double vertical_angle,
   double strict_vertical_angle,
@@ -363,7 +448,7 @@ void DoorServer::updateDoorFrameData(
   const double ave_speed_threshold,
   const int interpolation_limit,
   const cv::Mat& src_img,
-  const cv::Mat& result_img,
+  cv::Mat& result_img,
   const bool img_check)
 {
   // door_frame_data_updated_ の初期化  (動作確認済み)
@@ -626,7 +711,7 @@ void DoorServer::updateDoorFrameData(
 void DoorServer::caluculateCenterFrameDistance(
   const std::vector<std::tuple<cv::Point2f, std::array<double, 10>, double,  int>>& door_frame_data_updated,
   std::pair<std::pair<cv::Point2f, cv::Point3f>, std::pair<cv::Point2f, cv::Point3f>>& door_pos,
-  const cv::Mat& result_img,
+  cv::Mat& result_img,
   cv::Mat& depth_img,
   const bool img_check)
 {
@@ -815,6 +900,10 @@ void DoorServer::caluculateCenterFrameDistance(
       cv::Scalar color(0, 0, 255); 
       cv::Point textOrg((result_img.cols - textSize.width) / 2, (result_img.rows + textSize.height) / 2 - 100);
       cv::putText(result_img, text, textOrg, fontFace, fontScale, color, thickness);
+
+      std_msgs::msg::Int32 msg;
+      msg.data = 1;
+      event_flag_pub_->publish(msg);
     }
     else if (is_door_opened_ == false)
     {

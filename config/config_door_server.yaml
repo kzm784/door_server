@@ -1,9 +1,10 @@
 door_server_node:
   ros__parameters:
+    event_id_path:                  "/home/kazuma/dev_ws/src/door_server/config/door_event.csv"
     update_rate:                    30
     check_diff_image:               false
     check_labeling_hough_image:     false
     check_kmeans_hough_image:       false
     check_kmeans_clustering_image:  false
     check_updated_image:            false
-    check_door_state_image:               true
+    check_door_state_image:         true
