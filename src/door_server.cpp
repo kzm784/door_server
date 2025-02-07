@@ -33,13 +33,13 @@ DoorServer::DoorServer(const rclcpp::NodeOptions & options)
 
     // Subscribers
     infra_img_sub_ = create_subscription<sensor_msgs::msg::Image>(
-        "/infra1/image_rect_raw",
+        "/camera/camera/infra1/image_rect_raw",
         rclcpp::QoS(10).best_effort().durability_volatile(),
         std::bind(&DoorServer::infraImgSubCallback, this, std::placeholders::_1)
     );
 
     depth_img_sub_ = create_subscription<sensor_msgs::msg::Image>(
-        "/depth/image_rect_raw",
+        "/camera/camera/depth/image_rect_raw",
         rclcpp::QoS(10).best_effort().durability_volatile(),
         std::bind(&DoorServer::depthImgSubCallback, this, std::placeholders::_1)
     );
